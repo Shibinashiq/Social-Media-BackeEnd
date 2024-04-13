@@ -2,7 +2,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .serializers import UserSerializer, ProfileSerializer, PostSerializer
+from .serializers import LogoutSerializer, UserSerializer, ProfileSerializer, PostSerializer
 # from django.contrib.auth.models import User
 from .models import Profile, Post
 from rest_framework.generics import RetrieveUpdateAPIView
@@ -51,10 +51,31 @@ class LoginView(APIView):
         }
         return Response(response_data, status=status.HTTP_200_OK)
     
+from rest_framework_simplejwt.state import token_backend  
+    
+class LogoutView(APIView):
+    permission_classes = [AllowAny]
 
+    def post(self, request):
+        serializer = LogoutSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                access_token = serializer.validated_data["access_token"]
+                token = token_backend.decode(access_token, verify=False)
+                if token is not None:
+                    token_backend.blacklist(token)
+                    return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
+                else:
+                    return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+    
+    
 
 class UpdateProfile(RetrieveUpdateAPIView):
-    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
     serializer_class = ProfileSerializer
     queryset = Profile.objects.all()
 
@@ -70,23 +91,21 @@ class UpdateProfile(RetrieveUpdateAPIView):
 
 
 class CreatePostView(APIView):
-    permission_classes = [IsAuthenticated]  
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = PostSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(user=request.CustomUser) 
+            # Set the user field of the post to the authenticated user
+            serializer.save(user=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
     
 class UserPostsView(APIView):
     def get(self, request, user_id):
         try:
-           
             user_posts = Post.objects.filter(user_id=user_id)
-           
-            serializer = PostSerializer(user_posts, many=True)
+            serializer = PostSerializer(user_posts, many=True, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

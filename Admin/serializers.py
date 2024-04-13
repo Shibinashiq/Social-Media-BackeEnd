@@ -10,6 +10,6 @@ class UserSerializer(serializers.ModelSerializer):
 class UserBlockSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ['id', 'blocked']
+        fields = ['id', 'username','blocked']
         
         
