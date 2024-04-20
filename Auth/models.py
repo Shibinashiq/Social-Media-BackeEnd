@@ -3,7 +3,8 @@ from django.contrib.auth.models import AbstractUser
 
 class CustomUser(AbstractUser):
     blocked = models.BooleanField(default=False)
-    
+    bio = models.CharField(max_length=255, blank=True, null=True)
+    photo = models.ImageField(upload_to='user_photos/', blank=True, null=True)
     
 class Profile(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)

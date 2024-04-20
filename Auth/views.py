@@ -2,10 +2,9 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .serializers import LogoutSerializer, UserSerializer, ProfileSerializer, PostSerializer
+from .serializers import LogoutSerializer, UserSerializer,  PostSerializer, UserUpdateSerializer
 # from django.contrib.auth.models import User
 from .models import Profile, Post
-from rest_framework.generics import RetrieveUpdateAPIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Post,CustomUser
@@ -72,21 +71,23 @@ class LogoutView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
+class UserUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, user_id):
+        user = request.user
+        if str(user.id) != str(user_id):
+            return Response({"message": "You do not have permission to perform this action."}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = UserUpdateSerializer(user, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     
 
-class UpdateProfile(RetrieveUpdateAPIView):
-    serializer_class = ProfileSerializer
-    queryset = Profile.objects.all()
 
-    def update(self, request, *args, **kwargs):
-        partial = kwargs.pop('partial', False)  
-        instance = self.get_object()
-        profile_serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        if profile_serializer.is_valid():
-            profile_serializer.save()
-            return Response(profile_serializer.data, status=status.HTTP_200_OK)
-        return Response(profile_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 
@@ -109,3 +110,13 @@ class UserPostsView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        
+
+
+class PostListInHomePage(APIView):
+    def get(self, request):
+        posts = Post.objects.all()
+        serializer = PostSerializer(posts, many=True)
+        return Response(serializer.data)
+

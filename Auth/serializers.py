@@ -4,7 +4,7 @@ from  .models import Post,CustomUser,Profile
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ['username', 'email', 'password']
+        fields = ['username', 'email', 'password', 'bio' , 'photo']
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
@@ -21,21 +21,34 @@ class UserSerializer(serializers.ModelSerializer):
         )
         return user
     
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ['username', 'email', 'bio' , 'photo']
+    def validate_photo(self, value):
+        if not value:
+            raise serializers.ValidationError("You must provide an image for your profile.")
+        return value
    
  
-class ProfileSerializer(serializers.ModelSerializer):
-    user = UserSerializer()
-    class Meta:
-        model = Profile
-        fields = ['user','bio']
+
 
 
 class PostSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    username = serializers.SerializerMethodField()
+    user_photo = serializers.SerializerMethodField()
    
     class Meta:
         model = Post
-        fields = [ 'user', 'image', 'description']
+        fields = ['username','id', 'user_photo' ,'image', 'description']
+        
+    def get_username(self, obj):
+        return obj.user.username
+    def get_user_photo(self, obj):
+        return obj.user.photo.url if obj.user.photo else None
+
         
 class LogoutSerializer(serializers.Serializer):
     access_token = serializers.CharField()
+    
+    
