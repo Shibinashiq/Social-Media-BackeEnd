@@ -6,3 +6,4 @@ from .models import *
 
 admin.site.register(Story)
 admin.site.register(Comment)
+admin.site.register(Like)
