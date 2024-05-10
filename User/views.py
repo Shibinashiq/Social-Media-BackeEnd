@@ -1,7 +1,6 @@
 from django.shortcuts import get_object_or_404
-from rest_framework import viewsets, response  # Combined import
-from .models import Like, Story
-from .serializers import LikeSerializer, LikedUserSerializer, StorySerializer
+from rest_framework import viewsets, response 
+from .serializers import *
 from datetime import datetime, timedelta
 from django.utils import timezone
 from rest_framework.views import APIView
@@ -12,9 +11,13 @@ from rest_framework.response import Response
 from Auth.models import *
 from Auth.serializers import UserSerializer
 from rest_framework import generics
+from rest_framework.generics import CreateAPIView
 from rest_framework.permissions import IsAuthenticated
-from .models import Comment
-from .serializers import CommentSerializer
+from rest_framework.decorators import permission_classes
+from django.http import JsonResponse
+import random
+
+
 
 
 
@@ -76,10 +79,10 @@ def add_comment(request):
     if request.method == 'POST':
         serializer = CommentSerializer(data=request.data)
         if serializer.is_valid():
-            # Retrieve post object based on post ID
+
             post_id = request.data.get('post')
             post = get_object_or_404(Post, id=post_id)
-            # Set post object for the comment
+
             serializer.validated_data['post'] = post
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -98,12 +101,6 @@ def get_comments_by_post(request, post_id):
         
         
 
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import permission_classes
-
-
-
-
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
@@ -111,7 +108,7 @@ def delete_comment(request, comment_id):
     if request.method == 'DELETE':
         try:
             comment = Comment.objects.get(id=comment_id)
-            # Check if the authenticated user is the owner of the comment
+   
             if comment.user == request.user:
                 comment.delete()
                 return Response({'message': 'Comment deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
@@ -123,9 +120,6 @@ def delete_comment(request, comment_id):
         
         
         
-from rest_framework.generics import CreateAPIView
-from rest_framework.response import Response
-from rest_framework import status
 
 class LikeCreateView(CreateAPIView):
     queryset = Like.objects.all()
@@ -138,7 +132,7 @@ class LikeCreateView(CreateAPIView):
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         
-        # Check if the user has already liked the post
+
         post_id = data.get('post')
         existing_like = Like.objects.filter(post=post_id, user=request.user).first()
         
@@ -186,3 +180,154 @@ class CheckLikeView(generics.RetrieveAPIView):
         post_id = self.kwargs.get('post_id')
         liked = Like.objects.filter(post=post_id, user=request.user).exists()
         return Response({'liked': liked})
+    
+    
+
+from rest_framework.exceptions import ValidationError
+
+class SavePost(APIView):
+    def post(self, request):
+        serializer = SavedPostSerializer(data=request.data)
+        if serializer.is_valid():
+            user_id = serializer.validated_data['user']  # Extract user ID from serializer
+            post_id = serializer.validated_data['post_id']  # Extract post ID from serializer
+            
+            # Check if the post has already been saved by the user
+            if SavedPost.objects.filter(user=user_id, post_id=post_id).exists():
+                raise ValidationError("This post is already saved")
+            
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    
+    
+    
+
+from django.core.serializers import serialize
+
+def get_saved_posts(request, user_id):
+    try:
+        saved_posts = SavedPost.objects.filter(user_id=user_id)
+        serialized_posts = []
+        for saved_post in saved_posts:
+            post = Post.objects.get(pk=saved_post.post_id)
+            serialized_post = {
+                'id': saved_post.id,
+                'user': saved_post.user.id,  # Convert CustomUser to its ID
+                'post_id': saved_post.post_id,
+                'created_at': saved_post.created_at,
+                'image': post.image.url,  # Assuming 'image' is the field name for the image URL
+            }
+            serialized_posts.append(serialized_post)
+        return JsonResponse(serialized_posts, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+ 
+ 
+ 
+    
+class RemoveSavedPost(APIView):
+    def delete(self, request, saved_post_id):  # Change 'post_id' to 'saved_post_id'
+        try:
+            saved_post = SavedPost.objects.get(id=saved_post_id, user=request.user)
+            saved_post.delete()
+            return Response("Saved post removed successfully", status=status.HTTP_204_NO_CONTENT)
+        except SavedPost.DoesNotExist:
+            return Response("Saved post does not exist", status=status.HTTP_404_NOT_FOUND)
+
+    
+
+
+class RandomUsers(APIView):
+    def get(self, request):
+        current_user = request.user
+        
+        users = CustomUser.objects.exclude(id=current_user.id).exclude(followers=current_user)
+        
+        shuffled_users = list(users)
+        random.shuffle(shuffled_users)
+        
+        random_users = shuffled_users[:3]
+        
+        serializer = UserSerializer(random_users, many=True)
+        
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    
+    
+    
+    
+@api_view(['POST'])
+def submit_report(request):
+    serializer = ReportSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+from Auth.serializers import *
+
+class UserDetailsWithPosts(APIView):
+    def get(self, request, user_id):
+        try:
+            # Get user details
+            user = CustomUser.objects.get(id=user_id)
+            user_serializer = UserSerializer(user)
+
+            # Get user's posts
+            posts = Post.objects.filter(user=user)
+            posts_serializer = PostSerializer(posts, many=True)
+
+            # Combine user details and posts
+            user_data = user_serializer.data
+            user_data['posts'] = posts_serializer.data
+
+            return Response(user_data, status=status.HTTP_200_OK)
+        except CustomUser.DoesNotExist:
+            return Response({"message": "User does not exist"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        
+        
+
+class FollowUserView(APIView):
+    def post(self, request, *args, **kwargs):
+        serializer = FollowUserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        user_to_follow = serializer.validated_data['user_id']
+        current_user = request.user
+        
+        current_user.following.add(user_to_follow)
+        
+        user_to_follow.followers.add(current_user)
+        
+        followers = current_user.followers.all()
+        
+        follower_serializer = UserSerializer(followers, many=True)
+        
+        return Response({
+            "message": "User followed successfully",
+            "followers": follower_serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    
+
+class UnfollowUserView(APIView):
+    def post(self, request, *args, **kwargs):
+        serializer = UnfollowUserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        user_to_unfollow = serializer.validated_data['user_id']
+        current_user = request.user
+        
+        # Remove the user from the following list
+        current_user.following.remove(user_to_unfollow)
+        
+        # Remove the current user from the followers list of the user being unfollowed
+        user_to_unfollow.followers.remove(current_user)
+        
+        return Response("User unfollowed successfully", status=status.HTTP_200_OK)

@@ -40,3 +40,44 @@ class LikedUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = Like
         fields = ['user_name']
+        
+
+
+class SavedPostSerializer(serializers.ModelSerializer):
+    post_image = serializers.ImageField(source='post.image', read_only=True)
+    post_description = serializers.CharField(source='post.description', read_only=True)
+
+    class Meta:
+        model = SavedPost
+        fields = ['id', 'user', 'post_id', 'created_at', 'post_image', 'post_description']
+
+
+
+
+
+class ReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Report
+        fields = ['reason', 'message', 'reporter', 'reported_Post', 'created_at']
+        
+
+    
+class FollowUserSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+
+    def validate_user_id(self, value):
+        try:
+            user = CustomUser.objects.get(id=value)
+        except CustomUser.DoesNotExist:
+            raise serializers.ValidationError("User with this ID does not exist")
+        return user
+    
+class UnfollowUserSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+
+    def validate_user_id(self, value):
+        try:
+            user = CustomUser.objects.get(id=value)
+        except CustomUser.DoesNotExist:
+            raise serializers.ValidationError("User with this ID does not exist")
+        return user

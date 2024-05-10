@@ -4,7 +4,7 @@ from  .models import Post,CustomUser,Profile
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ['username', 'email', 'password', 'bio' , 'photo']
+        fields = ['id','username', 'email', 'password', 'bio' , 'photo']
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
@@ -33,19 +33,21 @@ class UserUpdateSerializer(serializers.ModelSerializer):
  
 
 
-
 class PostSerializer(serializers.ModelSerializer):
     username = serializers.SerializerMethodField()
     user_photo = serializers.SerializerMethodField()
-   
+    total_posts = serializers.IntegerField(source='user.total_posts', read_only=True)  
+
     class Meta:
         model = Post
-        fields = ['username','id', 'user_photo' ,'image', 'description']
+        fields = ['username','id',  'user_id', 'user_photo' ,'image', 'description', 'total_posts']
         
     def get_username(self, obj):
         return obj.user.username
+    
     def get_user_photo(self, obj):
         return obj.user.photo.url if obj.user.photo else None
+
 
         
 class LogoutSerializer(serializers.Serializer):

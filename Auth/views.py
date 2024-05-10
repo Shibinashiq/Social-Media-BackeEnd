@@ -79,16 +79,17 @@ class UserUpdateView(APIView):
         if str(user.id) != str(user_id):
             return Response({"message": "You do not have permission to perform this action."}, status=status.HTTP_403_FORBIDDEN)
         
+        # Check if request data is empty
+        if not request.data:
+            return Response({"message": "No data provided for update."})
+        
         serializer = UserUpdateSerializer(user, data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     
-    
-
-
-
 
 
 class CreatePostView(APIView):
@@ -97,10 +98,16 @@ class CreatePostView(APIView):
     def post(self, request):
         serializer = PostSerializer(data=request.data)
         if serializer.is_valid():
-            # Set the user field of the post to the authenticated user
+            
             serializer.save(user=request.user)
+            
+            request.user.refresh_from_db()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    
+    
+    
     
 class UserPostsView(APIView):
     def get(self, request, user_id):
